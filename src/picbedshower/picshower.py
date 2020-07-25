@@ -24,6 +24,8 @@ class PicShower(QWidget):
 
     # TODO:发送图片数据
     signalChecked = Signal(object)
+    signalDeleted = Signal(object)
+    signalCopyEntered = Signal(object)
 
     def __init__(self, picinfo, picsize:list=[100,100], parent=None) -> None:
         super().__init__(parent=parent)
@@ -69,14 +71,10 @@ class PicShower(QWidget):
 
     # TODO:选中，其它按钮置灰，记下角标
     @Slot(int)
-    def checked(self, status: int):
+    def checked(self, state: int):
         self.signalChecked.emit(self)
-        if(status):
-            self.delBtn.setDisabled(True)
-            self.copyBtn.setDisabled(True)
-        else:
-            self.delBtn.setDisabled(False)
-            self.copyBtn.setDisabled(False)
+        self.delBtn.setDisabled(state)
+        self.copyBtn.setDisabled(state)
 
     # TODO:设置图片
     def setPicContent(self, path: str):
@@ -93,10 +91,10 @@ class PicShower(QWidget):
     # TODO:复制markdown链接
     @Slot()
     def copyBtnClicked(self):
-        print("单图点击")
+        self.signalCopyEntered.emit(self)
 
     # TODO:删除图片
     @Slot()
     def delBtnClicked(self):
-        print("单图删除")
+        self.signalDeleted.emit(self)
 
