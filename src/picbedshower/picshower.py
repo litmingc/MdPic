@@ -23,7 +23,7 @@ suffix2 = ['gif', "GIF"]
 class PicShower(QWidget):
 
     # TODO:发送图片数据
-    signalChecked = Signal(object)
+    signalChecked = Signal(int, object)
     signalDeleted = Signal(object)
     signalCopyEntered = Signal(object)
 
@@ -72,7 +72,7 @@ class PicShower(QWidget):
     # TODO:选中，其它按钮置灰，记下角标
     @Slot(int)
     def checked(self, state: int):
-        self.signalChecked.emit(self)
+        self.signalChecked.emit(state, self)
         self.delBtn.setDisabled(state)
         self.copyBtn.setDisabled(state)
 
