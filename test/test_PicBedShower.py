@@ -8,6 +8,6 @@ from src.picbedshower.picbedshower import PicBedShower
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    example = PicBedShower("LitMing/ApiTest/path@gitee")
+    example = PicBedShower()
     example.show()
     sys.exit(app.exec_())
