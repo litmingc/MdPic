@@ -4,7 +4,7 @@ sys.path.append(".")
 
 from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMainWindow,QApplication, QPushButton, QWidget
 
-from src.picbedshower.model.apithread import GetThread
+from src.picbedshower.model.apithread import HttpThread
 import requests
 from functools import partial
 
@@ -20,7 +20,7 @@ class Main(QMainWindow):
         self.lineedit = QLineEdit(self)
         self.button = QPushButton("txt",self)
         
-        self.thread = GetThread()
+        self.thread = HttpThread()
         self.thread.signalRespose.connect(self.showRe)
         self.button.clicked.connect(self.btnfunc)
         self.count = 0

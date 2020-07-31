@@ -8,7 +8,7 @@
 from PySide2.QtCore import QMutex, QMutexLocker, QThread, QWaitCondition, Signal
 
 
-class GetThread(QThread):
+class HttpThread(QThread):
 
     signalRespose = Signal(object)
 
