@@ -15,6 +15,7 @@ def genTimeStr():
 
 @dataclass
 class PicBedModel:
+    id: int
     owner: str
     repo: str
     verboseName: str = field(default_factory=genTimeStr)
@@ -30,6 +31,7 @@ class PicBedModel:
 
 @dataclass
 class PicModel:
+    id:int
     fileName: str
     mdLink: str
     selfurl: str
