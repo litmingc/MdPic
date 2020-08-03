@@ -15,13 +15,14 @@ def genTimeStr():
 
 @dataclass
 class PicBedModel:
-    id: int
     owner: str
     repo: str
     verboseName: str = field(default_factory=genTimeStr)
     branch: str = "master"
     path: str = ""
     access_token: str = ""
+    customPath: str = None
+    id: int = None
 
     # 请求图库目录下文件的api的url
     def getcontenturl(self, ref: str = "master"):
@@ -31,7 +32,6 @@ class PicBedModel:
 
 @dataclass
 class PicModel:
-    id:int
     fileName: str
     mdLink: str
     selfurl: str
@@ -39,6 +39,7 @@ class PicModel:
     parent: PicBedModel
     size: int = None
     content: str = None
+    id: int = None
 
     # 返回添加文件的POST方法的url，不包含其他数据
     def postcontenturl(self):
