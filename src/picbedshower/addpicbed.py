@@ -94,7 +94,12 @@ class AddPicBedDialog(QDialog):
         if not self.hasEmptyLineEdit():
             self.dataReturn = PicBedModel(
                 owner=self.editowner.text(),
-                repo=self.editrepo.text()
+                repo=self.editrepo.text(),
+                verboseName=self.editverboseName.text(),
+                branch = self.editbranch.text(),
+                path = self.editpath.text(),
+                customPath = self.editpath.text(),
+                access_token = self.editaccess_token.text()
             )
             self.hide()
             self.setResult(1)
