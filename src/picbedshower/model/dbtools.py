@@ -175,7 +175,6 @@ class DBThread(QThread):
             sqlparameters = ()
         locker = QMutexLocker(self.mutex)
         self.dealList.append((sql, sqlparameters, signal, dealre))
-        print(self.dealList)
         if self.isRunning():
             self.condition.wakeOne()
         else:
@@ -187,7 +186,6 @@ class DBThread(QThread):
             self.mutex.lock()
             if self.dealList:
                 tmptuple = self.dealList.pop(0)
-                print("sql>>>", tmptuple[0])
                 re = dbcon.execute(tmptuple[0], tmptuple[1]).fetchall()
                 if tmptuple[3]:
                     re = tmptuple[3](re)

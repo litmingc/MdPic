@@ -8,18 +8,27 @@
 
 from PySide2.QtGui import QDragEnterEvent, QDropEvent, QImage, QPixmap
 import qtawesome as qta
-from PySide2.QtCore import Slot
+from PySide2.QtCore import Signal, Slot, Qt
 from PySide2.QtWidgets import (QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+import requests
 
 from src.picbedshower.picshower import PicShower
 from src.uitoy.flowlayer import FlowLayout
+from src.picbedshower.model.models import PicBedModel, PicModel
+from src.picbedshower.model.apithread import HttpThread
 
 
 class PicBedShower(QWidget):
 
+    signalGetPic = Signal(list)  # 获取图片信息，不带content
+
     def __init__(self, parent: any = None) -> None:
         super().__init__(parent=parent)
+        # pic池子
+        self.picPool = None
+        self.httpThread = HttpThread(self)
+        self.signalGetPic.connect(self.initPicsList)  # 更新Pics列表
         # 接收拖放
         self.setAcceptDrops(True)
 
@@ -43,7 +52,8 @@ class PicBedShower(QWidget):
 
         self.indexChecked = []  # 记录已选中
         # 图片集控件
-        self.picsShower = QWidget()
+        self.picsShower = QWidget(self)
+        self.picsShower.setMinimumSize(575, 575)  # 设置最小size
         self.picslay = FlowLayout(self.picsShower)  # 图片浮动布局，作为成员变量增减
 
         # 初始化图片集
@@ -103,27 +113,49 @@ class PicBedShower(QWidget):
         vbox.addLayout(buttonhbox)
 
     # TODO:初始化所有图片显示控件
-    def initAllPicShower(self, size: int = 100, width: int = 575):
-        self.picsShower.setMinimumSize(width, size)
-        pass
+    # 在线方式
+    def initAllPicShower(self):
+        if not self.infodata:
+            return
+        def querryPics():
+            reList = []  # 结果列表
+            re = requests.get(self.infodata.getcontenturl())
+            jsondata = re.json()
+            for i in jsondata:
+                reList.append(
+                    PicModel(fileName=i['name'],mdLink=i['download_url'],selfurl=i['url'],
+                    sha=i['sha'],parent=self.infodata,size=i['size'])
+                )
+            self.signalGetPic.emit(reList)
+
+        self.httpThread.doRequest(querryPics)
+
+    @Slot(list)
+    def initPicsList(self, pics:list):
+        # 先清空图片
+        for iterm in self.picsShower.findChildren(PicShower):
+            iterm.delBtnClicked()  # 不同于点击具体的Pic，少了这个调用
+            self.oneDel(iterm)
+        for iterm in pics:
+            self.addOnePic(iterm)
 
     # 更新图库信息infobox
-    def updateInfo(self, bedinfo: any = None):
+    def updateInfo(self, bedinfo: PicBedModel = None):
         if bedinfo:
             self.infodata = bedinfo
-        self.infoGroupBox.findChild(
-            QLineEdit, 'owner').setText(self.infodata.owner)
-        self.infoGroupBox.findChild(
-            QLineEdit, 'repo').setText(self.infodata.repo)
-        self.infoGroupBox.findChild(
-            QLineEdit, 'path').setText(self.infodata.path)
+            self.infoGroupBox.findChild(
+                QLineEdit, 'owner').setText(self.infodata.owner)
+            self.infoGroupBox.findChild(
+                QLineEdit, 'repo').setText(self.infodata.repo)
+            self.infoGroupBox.findChild(
+                QLineEdit, 'path').setText(self.infodata.path)
 
     # 本地文件上传，需要上传图片到图库，图片可由本地获取
     # 初始化图库，将图库中图片显示，从图床获取图片信息
     # TODO:添加一个图片
-    def addOnePic(self, picinfo: any, size: int = [100, 100], img: any = None):
+    def addOnePic(self, picinfo: PicModel, size: int = [150, 150], img: QImage = None):
         tmp = PicShower(
-            "tmp", picsize=size, parent=self.picsShower)
+            picinfo, picsize=size, parent=self.picsShower)
         tmp.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         # 绑定槽函数
         tmp.signalChecked.connect(self.oneChecked)
@@ -135,7 +167,7 @@ class PicBedShower(QWidget):
             # 有图片信息
             tmp.picLab.setPixmap(QPixmap().fromImage(img))
         else:
-            tmp.picLab.setText(str(picinfo))
+            tmp.loadPictureFormMDLink()
 
     # 全选
     @Slot(int)
@@ -147,14 +179,17 @@ class PicBedShower(QWidget):
     @Slot()
     def multiCopy(self):
         print("图片数量", len(self.picsShower.findChildren(PicShower)))
-        pass
+        self.checkBtn.setCheckState(Qt.Unchecked)  # 操作完，设置未选
 
     # TODO:批量del
     @Slot()
     def multiDel(self):
-        for iterm in self.indexChecked:
-            iterm.deleteLater()
-        self.indexChecked.clear()
+        while len(self.indexChecked) > 0:
+            # 注意顺序。不是使用for遍历，因为pop等函数会造成遍历的跳步。deleteLater()会造成指针问题
+            iterm = self.indexChecked.pop(0)
+            iterm.delBtnClicked()  # 不同于点击具体的Pic，少了这个调用
+            self.oneDel(iterm)
+        self.checkBtn.setCheckState(Qt.Unchecked)  # 操作完，设置未选
 
     # 单个图片被选中
     # TODO:准备被复制或删除，为批量操作作准备
@@ -163,7 +198,9 @@ class PicBedShower(QWidget):
         if state:
             self.indexChecked.append(obj)
         else:
-            self.indexChecked.remove(obj)
+            # 删除后，设置不选中状态时会触发，需要判断一下
+            if obj in self.indexChecked:
+                self.indexChecked.remove(obj)
 
     # TODO:单图触发copy
     @Slot()
@@ -189,4 +226,4 @@ class PicBedShower(QWidget):
         if(eMimeData.hasImage()):  # 直接是QImage, 需要优先处理
             self.addOnePic("picinfo", img=eMimeData.imageData())
         elif(eMimeData.hasUrls()):  # url包括文件
-            print(eMimeData.text())
+            pass

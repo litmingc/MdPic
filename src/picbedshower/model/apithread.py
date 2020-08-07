@@ -5,20 +5,27 @@
 @Last modified by：LitMingC/2020-07
 =================================================
 '''
-from PySide2.QtCore import QMutex, QMutexLocker, QThread, QWaitCondition, Signal
+from PySide2.QtCore import QMutex, QMutexLocker, QThread, QWaitCondition
 
 
 class HttpThread(QThread):
-
-    signalRespose = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.mutex = QMutex()
         self.condition = QWaitCondition()
         self.funclist = []  # 请求url
+        self.quit = False
 
-    def doGet(self, requestfunc: any):
+    def stop(self):
+        self.mutex.lock()
+        self.quit = True
+        self.condition.wakeOne()
+        self.mutex.unlock()
+
+        self.wait(20000)
+
+    def doRequest(self, requestfunc: any):
         locker = QMutexLocker(self.mutex)
         self.funclist.append(requestfunc)
         if not self.isRunning():
@@ -27,13 +34,12 @@ class HttpThread(QThread):
             self.condition.wakeOne()
 
     def run(self):
-        while True:
+        while not self.quit:
             if self.funclist:
                 self.mutex.lock()
                 tmp = self.funclist.pop(0)
                 self.mutex.unlock()
                 re = tmp()
-                self.signalRespose.emit(re)
             else:
                 self.mutex.lock()
                 self.condition.wait(self.mutex, 1000*60 *
