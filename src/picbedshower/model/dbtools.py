@@ -103,7 +103,7 @@ class DBThread(QThread):
         sql = '''select id,filename,mdlink,selfurl,sha,size,content from pic_table where parent = {};'''.format(
             index)
 
-        def PicToPicModel(iterms: list) -> list:
+        def PicToPicModel(iterms: list):
             result = []
             for iterm in iterms:
                 result.append(PicModel(

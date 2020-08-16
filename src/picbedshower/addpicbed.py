@@ -6,8 +6,7 @@
 @Last modified by：LitMingC/2020-08
 =================================================
 '''
-from PySide2.QtGui import QInputMethod
-from PySide2.QtCore import Qt,QEvent
+from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 from src.picbedshower.model.models import PicBedModel
 import qtawesome as qta

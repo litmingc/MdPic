@@ -8,7 +8,7 @@
 =================================================
 """
 
-from PySide2.QtGui import QBrush, QColor, QMovie, QPainter, QPen, QPixmap
+from PySide2.QtGui import QBrush, QColor, QGuiApplication, QMovie, QPainter, QPen, QPixmap
 import qtawesome as qta
 from PySide2.QtCore import QBuffer, QByteArray, QIODevice, QMargins, QPoint, QRect, QSize, QTextStream, QThread, QUrl, Qt, Signal, Slot
 from PySide2.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QLayout, QPushButton,
@@ -17,8 +17,9 @@ from PySide2.QtWebEngineWidgets import QWebEnginePage, QWebEngineView
 import requests
 
 from src.picbedshower.model.apithread import HttpThread
+from src.picbedshower.model.models import PicModel
 
-suffixPix = ['png', "PNG", 'BMP', 'bmp']
+suffixPix = ['png', "PNG", 'BMP', 'bmp', 'jpg','JPG']
 suffixGif = ['gif', "GIF"]
 
 
@@ -31,7 +32,7 @@ class PicShower(QWidget):
 
     signalGetPicBinary = Signal(bytes)
 
-    def __init__(self, picinfo, picsize:list=[100,100], parent=None) -> None:
+    def __init__(self, picinfo:PicModel, picsize:list=[100,100], parent=None) -> None:
         super().__init__(parent=parent)
         self.picinfo = picinfo
 
@@ -145,9 +146,13 @@ class PicShower(QWidget):
     # TODO:复制markdown链接
     @Slot()
     def copyBtnClicked(self):
-        self.signalCopyEntered.emit(self)
+        clipBoard = QGuiApplication.clipboard()
+        print("origin text", clipBoard.text())
+        clipBoard.clear()
+        mdString = "![{}]({})".format(self.picinfo.fileName, self.picinfo.mdLink)
+        clipBoard.setText(mdString)
 
-    # TODO:删除图片
+    # 删除自己的准备工作
     @Slot()
     def delBtnClicked(self):
         if x:=self.findChild(QBuffer):

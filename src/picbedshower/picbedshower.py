@@ -6,12 +6,15 @@
 =================================================
 '''
 
-from PySide2.QtGui import QDragEnterEvent, QDropEvent, QImage, QPixmap
+from src.picbedshower.addpic import AddPicDialog
+from PySide2.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QPixmap
+import json
 import qtawesome as qta
 from PySide2.QtCore import Signal, Slot, Qt
-from PySide2.QtWidgets import (QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+from PySide2.QtWidgets import (QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
                                QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 import requests
+from functools import partial
 
 from src.picbedshower.picshower import PicShower
 from src.uitoy.flowlayer import FlowLayout
@@ -22,9 +25,11 @@ from src.picbedshower.model.apithread import HttpThread
 class PicBedShower(QWidget):
 
     signalGetPic = Signal(list)  # 获取图片信息，不带content
+    signalFlash = Signal()  # 刷新
 
     def __init__(self, parent: any = None) -> None:
         super().__init__(parent=parent)
+        self.signalFlash.connect(self.initAllPicShower)
         # pic池子
         self.picPool = None
         self.httpThread = HttpThread(self)
@@ -49,6 +54,10 @@ class PicBedShower(QWidget):
         self.checkBtn.setSizePolicy(
             QSizePolicy.Fixed, QSizePolicy.Fixed)  # 固定宽高
         self.checkBtn.stateChanged.connect(self.allChecked)
+
+        self.pushOnePicBtn = QPushButton(qta.icon("fa.upload"), "上传", self)
+        self.pushOnePicBtn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.pushOnePicBtn.clicked.connect(self.pushOnePicBtnClicked)
 
         self.indexChecked = []  # 记录已选中
         # 图片集控件
@@ -100,6 +109,7 @@ class PicBedShower(QWidget):
         # 按钮组合的横向布局
         buttonhbox = QHBoxLayout()
         buttonhbox.addStretch(1)
+        buttonhbox.addWidget(self.pushOnePicBtn)
         buttonhbox.addWidget(self.copyBtn)
         buttonhbox.addWidget(self.delBtn)
         buttonhbox.addWidget(self.checkBtn)
@@ -112,30 +122,31 @@ class PicBedShower(QWidget):
         # vbox.addStretch(1)
         vbox.addLayout(buttonhbox)
 
-    # TODO:初始化所有图片显示控件
-    # 在线方式
+    # 在线方式，初始化所有图片显示控件
+    @Slot()
     def initAllPicShower(self):
         if not self.infodata:
             return
+
         def querryPics():
             reList = []  # 结果列表
             re = requests.get(self.infodata.getcontenturl())
             jsondata = re.json()
-            for i in jsondata:
+            for iterm in jsondata:
                 reList.append(
-                    PicModel(fileName=i['name'],mdLink=i['download_url'],selfurl=i['url'],
-                    sha=i['sha'],parent=self.infodata,size=i['size'])
+                    PicModel(fileName=iterm['name'], mdLink=iterm['download_url'], selfurl=iterm['url'],
+                             sha=iterm['sha'], parent=self.infodata, size=iterm['size'])
                 )
             self.signalGetPic.emit(reList)
 
         self.httpThread.doRequest(querryPics)
 
     @Slot(list)
-    def initPicsList(self, pics:list):
+    def initPicsList(self, pics: list):
         # 先清空图片
         for iterm in self.picsShower.findChildren(PicShower):
-            iterm.delBtnClicked()  # 不同于点击具体的Pic，少了这个调用
-            self.oneDel(iterm)
+            iterm.requestThread.stop()
+            iterm.deleteLater()
         for iterm in pics:
             self.addOnePic(iterm)
 
@@ -150,14 +161,12 @@ class PicBedShower(QWidget):
             self.infoGroupBox.findChild(
                 QLineEdit, 'path').setText(self.infodata.path)
 
-    # 本地文件上传，需要上传图片到图库，图片可由本地获取
-    # 初始化图库，将图库中图片显示，从图床获取图片信息
     # TODO:添加一个图片
     def addOnePic(self, picinfo: PicModel, size: int = [150, 150], img: QImage = None):
         tmp = PicShower(
             picinfo, picsize=size, parent=self.picsShower)
         tmp.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # 绑定槽函数
+        # 信号绑定槽函数，实现按钮功能的扩充，不修改按钮功能防止混乱
         tmp.signalChecked.connect(self.oneChecked)
         tmp.signalDeleted.connect(self.oneDel)
         tmp.signalCopyEntered.connect(self.oneCopy)
@@ -168,6 +177,38 @@ class PicBedShower(QWidget):
             tmp.picLab.setPixmap(QPixmap().fromImage(img))
         else:
             tmp.loadPictureFormMDLink()
+
+    @Slot()
+    def pushOnePicBtnClicked(self):
+        '''上传按钮触发，打开重命名对话框，调用上传'''
+        if self.infodata == None:
+            QMessageBox().warning(self, "注意", "请选择需要上传的图床！")
+            return
+        ok, fileName, filePath = AddPicDialog().getPic()  # fileName是重命名的，可能与filePath不一致
+        if not ok:
+            return
+
+        self.httpThread.doRequest(
+            partial(self.pushRequest, filePath, fileName))
+
+    def pushRequest(self, filePath: str, fileName: str):
+        '''在本图床中上传图片'''
+        with open(filePath, 'rb') as f:
+            data = f.read()
+            from base64 import b64encode
+            encodeStr = b64encode(data)
+        import datetime as DT
+        body = {
+            "access_token": self.infodata.access_token,
+            "content": encodeStr.decode(),
+            "message": "MDPic上传文件（{}）".format(DT.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        }
+        headers = {
+            'Content-Type': 'application/json',
+        }
+        re = requests.post(self.infodata.postcontenturl(
+            fileName), data=json.dumps(body), headers=headers)
+        self.signalFlash.emit()
 
     # 全选
     @Slot(int)
@@ -181,14 +222,13 @@ class PicBedShower(QWidget):
         print("图片数量", len(self.picsShower.findChildren(PicShower)))
         self.checkBtn.setCheckState(Qt.Unchecked)  # 操作完，设置未选
 
-    # TODO:批量del
+    # 批量del
     @Slot()
     def multiDel(self):
         while len(self.indexChecked) > 0:
             # 注意顺序。不是使用for遍历，因为pop等函数会造成遍历的跳步。deleteLater()会造成指针问题
             iterm = self.indexChecked.pop(0)
-            iterm.delBtnClicked()  # 不同于点击具体的Pic，少了这个调用
-            self.oneDel(iterm)
+            iterm.delBtnClicked()  # 手动触发个体的删除按钮
         self.checkBtn.setCheckState(Qt.Unchecked)  # 操作完，设置未选
 
     # 单个图片被选中
@@ -208,22 +248,59 @@ class PicBedShower(QWidget):
         pass
 
     # TODO:单图触发del
-    # 删除对应控件
+    # 删除对应控件, 删除库中文件
     @Slot()
-    def oneDel(self, obj):
+    def oneDel(self, obj: PicShower):
+        picshower = obj
+        def deletePic():
+            import datetime as DT
+            body = {
+                "access_token": self.infodata.access_token,
+                "sha": picshower.picinfo.sha,
+                "message": "MDPic删除文件（{}）".format(DT.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            }
+            headers = {
+                'Content-Type': 'application/json',
+            }
+            re = requests.delete(picshower.picinfo.deleteurl(),
+                                 data=json.dumps(body), headers=headers)
+            self.signalFlash.emit()
+
+        self.httpThread.doRequest(deletePic)
+
         obj.deleteLater()  # 删除控件
 
     # TODO:拖动进入
     def dragEnterEvent(self, event: QDragEnterEvent):
-        eMimeData = event.mimeData()
-        if(eMimeData.hasUrls() or eMimeData.hasImage()):  # url包括文件
-            event.accept()
-        else:
+        # 判断图床信息是否为空
+        if self.infodata == None:
             event.ignore()
+            return
+        eMimeData = event.mimeData()
+        # 判断只有一个文件传入
+        if (not eMimeData.hasUrls()) or len(eMimeData.urls()) > 1 or eMimeData.urls()[0].scheme() != 'file':
+            event.ignore()
+            return
+        # 判断是否符合picshower的文件类型
+        suffix = eMimeData.urls()[0].fileName().split('.')[-1]
+        from src.picbedshower.picshower import suffixGif, suffixPix
+        if suffix not in suffixGif and suffix not in suffixPix:
+            event.ignore()
+            return
+        event.accept()
 
+    # 拖拽上传
     def dropEvent(self, event: QDropEvent):
         eMimeData = event.mimeData()
-        if(eMimeData.hasImage()):  # 直接是QImage, 需要优先处理
-            self.addOnePic("picinfo", img=eMimeData.imageData())
-        elif(eMimeData.hasUrls()):  # url包括文件
-            pass
+        filePath = eMimeData.urls()[0].path()[1:]  # 去掉开始的斜杠
+        fileName = eMimeData.urls()[0].fileName()
+        ok, fileName, filePath = AddPicDialog().setFileName(
+            fileName, filePath)  # 重命名fileName, filePath无作用
+        if not ok:
+            return
+        self.httpThread.doRequest(
+            partial(self.pushRequest, filePath, fileName))
+
+    def closeEvent(self, event: QCloseEvent):
+        print("picbedshower close")
+        self.httpThread.stop()

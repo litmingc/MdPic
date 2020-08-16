@@ -29,6 +29,10 @@ class PicBedModel:
         return "https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}?ref={ref}"\
             .format(owner=self.owner, repo=self.repo, path=self.path, ref=ref)
 
+    # 返回添加文件的POST方法的url，不包含其他数据
+    def postcontenturl(self, fileName):
+        return "https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}/{filename}"\
+            .format(owner=self.owner, repo=self.repo, path=self.path, filename=fileName)
 
 @dataclass
 class PicModel:
@@ -41,11 +45,7 @@ class PicModel:
     content: str = None
     id: int = None
 
-    # 返回添加文件的POST方法的url，不包含其他数据
-    def postcontenturl(self):
-        return "https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}/{filename}"\
-            .format(owner=self.parent.owner, repo=self.parent.repo, path=self.parent.path, filename=self.filename)
-
     # DELETE的url
     def deleteurl(self):
-        return self.postcontenturl()  # api的url与POST是一样的
+        return "https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}/{filename}"\
+            .format(owner=self.parent.owner, repo=self.parent.repo, path=self.parent.path, filename=self.fileName)
