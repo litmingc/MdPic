@@ -7,7 +7,7 @@
 '''
 
 from src.picbedshower.addpic import AddPicDialog
-from PySide2.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QPixmap
+from PySide2.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent, QGuiApplication, QImage, QPixmap
 import json
 import qtawesome as qta
 from PySide2.QtCore import Signal, Slot, Qt
@@ -219,7 +219,12 @@ class PicBedShower(QWidget):
     # TODO:批量copy
     @Slot()
     def multiCopy(self):
-        print("图片数量", len(self.picsShower.findChildren(PicShower)))
+        clipBoard = QGuiApplication.clipboard()
+        clipBoard.clear()
+        mdString = ''
+        for iterm in self.indexChecked:
+            mdString += "![{}]({})\n".format(iterm.picinfo.fileName, iterm.picinfo.mdLink)
+        clipBoard.setText(mdString)
         self.checkBtn.setCheckState(Qt.Unchecked)  # 操作完，设置未选
 
     # 批量del

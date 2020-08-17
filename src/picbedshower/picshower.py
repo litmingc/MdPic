@@ -147,7 +147,6 @@ class PicShower(QWidget):
     @Slot()
     def copyBtnClicked(self):
         clipBoard = QGuiApplication.clipboard()
-        print("origin text", clipBoard.text())
         clipBoard.clear()
         mdString = "![{}]({})".format(self.picinfo.fileName, self.picinfo.mdLink)
         clipBoard.setText(mdString)
